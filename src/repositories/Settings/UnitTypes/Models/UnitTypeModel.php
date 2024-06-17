@@ -30,6 +30,18 @@ class UnitTypeModel
   {
     return 'tenant_id';
   }
+  public static function getLabelColumnName(): string
+  {
+    return 'label';
+  }
+  public static function getDeleteAtColumnName(): string
+  {
+    return 'deleted_at';
+  }
+  public static function getCreatedAtColumnName(): string
+  {
+    return 'created_at';
+  }
 
   public static function getTableName(): string
   {
