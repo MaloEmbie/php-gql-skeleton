@@ -132,7 +132,6 @@ class UnitTypeRepository
 
   public function create(UnitTypeMutationData $data, string $tenantId): int|string
   {
-    var_dump(UnitTypeMapper::serializeCreate($data, $tenantId));
     $uuid = $this::generateUuid();
     $newUnitTypeValues = UnitTypeMapper::serializeCreate($data, $tenantId);
     $newUnitTypeValues[UnitTypeModel::getPkColumnName()] = $uuid;
