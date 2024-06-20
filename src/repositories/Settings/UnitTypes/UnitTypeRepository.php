@@ -18,6 +18,24 @@ class UnitTypeRepository
   private QueryBuilder $db;
   protected PromiseAdapterInterface $dataLoaderPromiseAdapter;
 
+  /**
+   * Generate a version 4 (random) UUID.
+   * TODO: replace this function by using the ramsey/uuid library already contains in Illuminate\Support\Str
+   */
+  private static function generateUuid(): string
+  {
+    // Generate 16 random bytes
+    $data = random_bytes(16);
+
+    // Set the version to 0100
+    $data[6] = chr(ord($data[6]) & 0x0f | 0x40);
+    // Set the variant to 10xx
+    $data[8] = chr(ord($data[8]) & 0x3f | 0x80);
+
+    // Output the 36-character UUID.
+    return vsprintf('%s%s-%s-%s-%s-%s%s%s', str_split(bin2hex($data), 4));
+  }
+
   public function __construct(
     private QueryBuilder $database,
     PromiseAdapterInterface $dataLoaderPromiseAdapter
@@ -35,7 +53,7 @@ class UnitTypeRepository
           $query->where([UnitTypeModel::getTenantColumnName() => $tenantId])
             ->orWhere(UnitTypeModel::getTenantColumnName(), null);
         });
-      $query->whereNull('_deleted_at');
+      $query->whereNull(UnitTypeModel::getDeleteAtColumnName());
       $query->whereIn(UnitTypeModel::getPkColumnName(), $ids);
 
       $entities = $query->get()->mapWithKeys(function ($row) {
@@ -83,11 +101,11 @@ class UnitTypeRepository
   {
     return async(
       fn () => $this->getQueryBuilder()
-        ->where('label', $name)
-        ->whereNull('deleted_at')
+        ->where(UnitTypeModel::getLabelColumnName(), $name)
+        ->whereNull(UnitTypeModel::getDeleteAtColumnName())
         ->where(function ($query) use ($excludeId) {
           if (isset($excludeId))
-            $query->where('id', '!=', $excludeId);
+            $query->where(UnitTypeModel::getPkColumnName(), '!=', $excludeId);
         })
         ->where(function ($query) use ($tenantId) {
           $query->where(UnitTypeModel::getTenantColumnName(), '=', $tenantId)
@@ -100,7 +118,7 @@ class UnitTypeRepository
   {
     return async(
       fn () => $this->getQueryBuilder()
-        ->whereNull('deleted_at')
+        ->whereNull(UnitTypeModel::getDeleteAtColumnName())
         ->where(function ($query) use ($tenantId) {
           $query->where(UnitTypeModel::getTenantColumnName(), '=', $tenantId)
             ->orWhereNull(UnitTypeModel::getTenantColumnName());
@@ -114,10 +132,15 @@ class UnitTypeRepository
 
   public function create(UnitTypeMutationData $data, string $tenantId): int|string
   {
-    $newId = $this->getQueryBuilder()->insertGetId(
-      UnitTypeMapper::serializeCreate($data, $tenantId)
-    );
-    return $newId;
+    $uuid = $this::generateUuid();
+    $newUnitTypeValues = UnitTypeMapper::serializeCreate($data, $tenantId);
+    $newUnitTypeValues[UnitTypeModel::getPkColumnName()] = $uuid;
+
+    $isCreated = $this->getQueryBuilder()->insert($newUnitTypeValues);
+    if(!$isCreated) {
+      throw new \Exception("Unit type not created");
+    }
+    return $uuid;
   }
 
   public function update(string $id, UnitTypeMutationData $data)
